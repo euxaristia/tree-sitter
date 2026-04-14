@@ -15,9 +15,37 @@ if(AMALGAMATED)
 else()
   file(GLOB TS_SOURCE_FILES lib/src/*.c)
   list(REMOVE_ITEM TS_SOURCE_FILES "${PROJECT_SOURCE_DIR}/lib/src/lib.c")
+  # Modules ported to Rust (crates/runtime). Their symbols come from the Rust
+  # staticlib built below; including the C source as well would cause duplicate
+  # symbol errors at link time.
+  list(REMOVE_ITEM TS_SOURCE_FILES "${PROJECT_SOURCE_DIR}/lib/src/point.c")
 endif()
 
 add_library(tree-sitter ${TS_SOURCE_FILES})
+
+# --- Rust runtime (crates/runtime) ------------------------------------------
+# Pure-Rust reimplementation of modules under lib/src/, built as a staticlib
+# and linked into the tree-sitter library. Modules are ported incrementally;
+# see the REMOVE_ITEM calls above for the current set.
+if(NOT AMALGAMATED)
+  set(TS_RUNTIME_DIR     "${PROJECT_SOURCE_DIR}/crates/runtime")
+  set(TS_RUNTIME_TARGET  "${PROJECT_SOURCE_DIR}/target/release")
+  set(TS_RUNTIME_STATIC  "${TS_RUNTIME_TARGET}/libtree_sitter_runtime.a")
+  file(GLOB_RECURSE TS_RUNTIME_SOURCES
+       "${TS_RUNTIME_DIR}/src/*.rs"
+       "${TS_RUNTIME_DIR}/Cargo.toml")
+  add_custom_command(
+    OUTPUT  "${TS_RUNTIME_STATIC}"
+    COMMAND ${CMAKE_COMMAND} -E env cargo build --release -p tree-sitter-runtime
+    WORKING_DIRECTORY "${PROJECT_SOURCE_DIR}"
+    DEPENDS ${TS_RUNTIME_SOURCES}
+    COMMENT "Building tree-sitter-runtime (Rust)"
+    VERBATIM)
+  add_custom_target(tree-sitter-runtime-build DEPENDS "${TS_RUNTIME_STATIC}")
+  add_dependencies(tree-sitter tree-sitter-runtime-build)
+  target_link_libraries(tree-sitter PRIVATE "${TS_RUNTIME_STATIC}")
+endif()
+# ---------------------------------------------------------------------------
 
 target_include_directories(tree-sitter PRIVATE lib/src lib/src/wasm PUBLIC lib/include)
 
