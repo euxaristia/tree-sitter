@@ -27,10 +27,12 @@ pub struct TSInputEdit {
 #[inline]
 #[must_use]
 pub const fn point_add(a: TSPoint, b: TSPoint) -> TSPoint {
+    // Wrapping arithmetic to match C's defined uint32_t overflow behavior
+    // (the original point.h uses `+` on uint32_t, which wraps).
     if b.row > 0 {
-        TSPoint { row: a.row + b.row, column: b.column }
+        TSPoint { row: a.row.wrapping_add(b.row), column: b.column }
     } else {
-        TSPoint { row: a.row, column: a.column + b.column }
+        TSPoint { row: a.row, column: a.column.wrapping_add(b.column) }
     }
 }
 
@@ -65,7 +67,9 @@ pub unsafe extern "C" fn ts_point_edit(
     let mut start_point = unsafe { *point };
 
     if start_byte >= edit.old_end_byte {
-        start_byte = edit.new_end_byte + (start_byte - edit.old_end_byte);
+        // The subtraction is guarded by the `>=` check above; the outer
+        // addition uses wrapping semantics to match C's uint32_t behavior.
+        start_byte = edit.new_end_byte.wrapping_add(start_byte - edit.old_end_byte);
         start_point = point_add(edit.new_end_point, point_sub(start_point, edit.old_end_point));
     } else if start_byte > edit.start_byte {
         start_byte = edit.new_end_byte;

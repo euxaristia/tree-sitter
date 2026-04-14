@@ -28,18 +28,46 @@ add_library(tree-sitter ${TS_SOURCE_FILES})
 # and linked into the tree-sitter library. Modules are ported incrementally;
 # see the REMOVE_ITEM calls above for the current set.
 if(NOT AMALGAMATED)
-  set(TS_RUNTIME_DIR     "${PROJECT_SOURCE_DIR}/crates/runtime")
-  set(TS_RUNTIME_TARGET  "${PROJECT_SOURCE_DIR}/target/release")
-  set(TS_RUNTIME_STATIC  "${TS_RUNTIME_TARGET}/libtree_sitter_runtime.a")
+  set(TS_RUNTIME_DIR "${PROJECT_SOURCE_DIR}/crates/runtime")
+
+  # Map CMake build type -> cargo profile directory.
+  #   Debug            -> target/<triple?>/debug
+  #   everything else  -> target/<triple?>/release (Release, RelWithDebInfo, MinSizeRel, unset)
+  if(CMAKE_BUILD_TYPE STREQUAL "Debug")
+    set(_ts_cargo_flag "")
+    set(_ts_cargo_profile_dir "debug")
+  else()
+    set(_ts_cargo_flag "--release")
+    set(_ts_cargo_profile_dir "release")
+  endif()
+
+  # Respect cross-compilation: derive a Rust target triple from CMake and pass
+  # it via --target so cargo emits into target/<triple>/<profile>/. If no
+  # triple is available we fall back to the host target.
+  set(_ts_cargo_target_arg "")
+  set(_ts_cargo_target_dir "")
+  if(CMAKE_CROSSCOMPILING AND DEFINED CMAKE_C_COMPILER_TARGET AND NOT CMAKE_C_COMPILER_TARGET STREQUAL "")
+    set(_ts_cargo_target_arg "--target=${CMAKE_C_COMPILER_TARGET}")
+    set(_ts_cargo_target_dir "${CMAKE_C_COMPILER_TARGET}/")
+  endif()
+
+  # Platform-appropriate staticlib name. On MSVC Cargo emits
+  # `tree_sitter_runtime.lib` (no `lib` prefix); on Unix, `libtree_sitter_runtime.a`.
+  # `CMAKE_STATIC_LIBRARY_{PREFIX,SUFFIX}` reflect the target platform's conventions.
+  set(TS_RUNTIME_STATIC
+    "${PROJECT_SOURCE_DIR}/target/${_ts_cargo_target_dir}${_ts_cargo_profile_dir}/${CMAKE_STATIC_LIBRARY_PREFIX}tree_sitter_runtime${CMAKE_STATIC_LIBRARY_SUFFIX}")
+
   file(GLOB_RECURSE TS_RUNTIME_SOURCES
        "${TS_RUNTIME_DIR}/src/*.rs"
        "${TS_RUNTIME_DIR}/Cargo.toml")
+
   add_custom_command(
     OUTPUT  "${TS_RUNTIME_STATIC}"
-    COMMAND ${CMAKE_COMMAND} -E env cargo build --release -p tree-sitter-runtime
+    COMMAND ${CMAKE_COMMAND} -E env cargo build ${_ts_cargo_flag} ${_ts_cargo_target_arg}
+            -p tree-sitter-runtime
     WORKING_DIRECTORY "${PROJECT_SOURCE_DIR}"
     DEPENDS ${TS_RUNTIME_SOURCES}
-    COMMENT "Building tree-sitter-runtime (Rust)"
+    COMMENT "Building tree-sitter-runtime (Rust, profile=${_ts_cargo_profile_dir})"
     VERBATIM)
   add_custom_target(tree-sitter-runtime-build DEPENDS "${TS_RUNTIME_STATIC}")
   add_dependencies(tree-sitter tree-sitter-runtime-build)
