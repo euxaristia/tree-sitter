@@ -2087,6 +2087,10 @@ dependencies = [
 ]
 
 [[package]]
+name = "tree-sitter-runtime"
+version = "0.27.0"
+
+[[package]]
 name = "tree-sitter-tags"
 version = "0.27.0"
 dependencies = [

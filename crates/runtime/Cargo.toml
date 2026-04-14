@@ -1,0 +1,14 @@
+[package]
+name    = "tree-sitter-runtime"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+description = "Pure-Rust implementation of the tree-sitter C runtime (in-progress port). Exposes the tree-sitter C ABI."
+publish = false
+
+[lib]
+name = "tree_sitter_runtime"
+crate-type = ["staticlib", "rlib"]
+
+[lints]
+workspace = true

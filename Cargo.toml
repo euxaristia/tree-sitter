@@ -9,6 +9,7 @@ members = [
   "crates/tags",
   "crates/xtask",
   "crates/language",
+  "crates/runtime",
   "lib",
 ]
 resolver = "2"
